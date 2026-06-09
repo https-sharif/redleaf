@@ -1,0 +1,13 @@
+{% extends "blog/base.html" %}
+
+{% block title %}Delete Post - RedLeaf{% endblock %}
+
+{% block content %}
+<h1 style="font-size:1.2rem; font-weight:600;" class="mb-3">Delete Post</h1>
+<p>Are you sure you want to delete <strong>{{ post.title }}</strong>? This cannot be undone.</p>
+<form method="post" class="d-flex gap-2">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-sm btn-danger">Yes, delete</button>
+  <a href="{% url 'post_detail' post.pk %}" class="btn btn-sm btn-outline-secondary">Cancel</a>
+</form>
+{% endblock %}

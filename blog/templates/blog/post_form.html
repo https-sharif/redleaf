@@ -1,0 +1,47 @@
+{% extends "blog/base.html" %}
+
+{% block title %}{{ action }} Post - RedLeaf{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'post_list' %}" class="text-muted small">&larr; All posts</a>
+</div>
+
+<h1 style="font-size:1.3rem; font-weight:600;" class="mb-3">{{ action }} Post</h1>
+
+<div style="background:#fff; border:1px solid #e0e0e0; border-radius:4px; padding:1.5rem;">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="mb-3">
+        <label for="{{ field.id_for_label }}" class="form-label fw-semibold" style="font-size:0.9rem;">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}
+          <div class="text-muted small mt-1">{{ field.help_text }}</div>
+        {% endif %}
+        {% if field.errors %}
+          {% for error in field.errors %}
+            <div class="text-danger small">{{ error }}</div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    {% if post and post.image %}
+      <div class="mb-3">
+        <p class="form-label fw-semibold" style="font-size:0.9rem;">Current image</p>
+        <img src="{{ post.image.url }}" alt="" style="max-height:150px; border-radius:3px;">
+      </div>
+    {% endif %}
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-sm btn-primary">{{ action }}</button>
+      {% if post %}
+        <a href="{% url 'post_detail' post.pk %}" class="btn btn-sm btn-outline-secondary">Cancel</a>
+      {% else %}
+        <a href="{% url 'post_list' %}" class="btn btn-sm btn-outline-secondary">Cancel</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

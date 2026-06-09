@@ -1,0 +1,82 @@
+{% extends "blog/base.html" %}
+
+{% block title %}{{ post.title }} - RedLeaf{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'post_list' %}" class="text-muted small">&larr; All posts</a>
+</div>
+
+<div class="post-card mb-4">
+  {% if post.image %}
+    <img src="{{ post.image.url }}" alt="" style="width:100%; max-height:360px; object-fit:cover; border-radius:3px; margin-bottom:1rem;">
+  {% endif %}
+
+  <h1 style="font-size:1.4rem; font-weight:600;">{{ post.title }}</h1>
+  <div class="post-meta mb-3">
+    by <a href="{% url 'profile' post.author.username %}">{{ post.author.username }}</a>
+    &middot; {{ post.created_at|date:"N j, Y, g:i a" }}
+    {% if post.category %}
+      &middot; <a href="{% url 'category_view' post.category.slug %}" class="category-badge">{{ post.category.name }}</a>
+    {% endif %}
+  </div>
+
+  <div style="white-space:pre-wrap;">{{ post.body }}</div>
+
+  <div class="mt-3 d-flex align-items-center gap-3">
+    {% if user.is_authenticated %}
+      <form method="post" action="{% url 'post_like' post.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="like-btn {% if liked %}liked{% endif %}">
+          &#9829; {{ like_count }} Like{% if like_count != 1 %}s{% endif %}
+        </button>
+      </form>
+    {% else %}
+      <span class="like-btn">&#9829; {{ like_count }}</span>
+    {% endif %}
+
+    {% if can_edit or can_delete %}
+      {% if can_edit %}
+        <a href="{% url 'post_edit' post.pk %}" class="btn btn-sm btn-outline-secondary">Edit</a>
+      {% endif %}
+      {% if can_delete %}
+        <a href="{% url 'post_delete' post.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<h2 style="font-size:1.1rem; font-weight:600;" class="mb-3">Comments ({{ comments|length }})</h2>
+
+{% for comment in comments %}
+  <div class="comment-block">
+    <div>{{ comment.body }}</div>
+    <div class="comment-meta mt-1">
+      <a href="{% url 'profile' comment.author.username %}">{{ comment.author.username }}</a>
+      &middot; {{ comment.created_at|date:"N j, Y, g:i a" }}
+      {% if user.is_authenticated %}
+        {% with role=user.profile.role %}
+          {% if role == 'super_admin' or role == 'moderator' or comment.author == user or post.author == user %}
+            &middot; <a href="{% url 'comment_delete' comment.pk %}" class="text-danger" style="font-size:0.8rem;">Delete</a>
+          {% endif %}
+        {% endwith %}
+      {% endif %}
+    </div>
+  </div>
+{% empty %}
+  <p class="text-muted">No comments yet.</p>
+{% endfor %}
+
+{% if user.is_authenticated %}
+  <div class="mt-4">
+    <h3 style="font-size:1rem; font-weight:600;">Add a comment</h3>
+    <form method="post">
+      {% csrf_token %}
+      {{ comment_form.body }}
+      <button type="submit" class="btn btn-sm btn-primary mt-2">Post Comment</button>
+    </form>
+  </div>
+{% else %}
+  <p class="text-muted mt-3"><a href="{% url 'login' %}">Log in</a> to leave a comment.</p>
+{% endif %}
+{% endblock %}

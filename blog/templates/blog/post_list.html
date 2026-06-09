@@ -1,0 +1,58 @@
+{% extends "blog/base.html" %}
+
+{% block title %}RedLeaf - Posts{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 style="font-size:1.5rem; font-weight:600; margin:0;">
+    {% if active_category %}{{ active_category.name }}{% else %}Posts{% endif %}
+  </h1>
+  {% if categories %}
+    <div class="d-flex flex-wrap gap-1">
+      <a href="{% url 'post_list' %}" class="category-badge {% if not active_category %}fw-bold{% endif %}">All</a>
+      {% for cat in categories %}
+        <a href="{% url 'category_view' cat.slug %}" class="category-badge {% if active_category.slug == cat.slug %}fw-bold{% endif %}">{{ cat.name }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+{% if posts %}
+  <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    {% for post in posts %}
+      <div class="col">
+        <a href="{% url 'post_detail' post.pk %}" class="text-decoration-none text-reset">
+          <div class="post-card h-100 p-0" style="overflow:hidden; display:flex; flex-direction:column;">
+            {% if post.image %}
+              <img src="{{ post.image.url }}" alt=""
+                   style="width:100%; height:160px; object-fit:cover; display:block;">
+            {% else %}
+              <div style="width:100%; height:160px; background:#f0e4e4; display:flex; align-items:center; justify-content:center;">
+                <span style="font-size:2rem; color:#c0392b;">&#9998;</span>
+              </div>
+            {% endif %}
+            <div style="padding:1rem; flex:1; display:flex; flex-direction:column;">
+              <h2 style="font-size:1rem; font-weight:600; margin-bottom:0.35rem; color:#222;">{{ post.title }}</h2>
+              <div class="post-meta mb-2">
+                <a href="{% url 'profile' post.author.username %}" class="text-muted" style="font-size:0.8rem;">{{ post.author.username }}</a>
+                &middot; <span style="font-size:0.8rem;">{{ post.created_at|date:"N j, Y" }}</span>
+                {% if post.category %}
+                  &middot; <a href="{% url 'category_view' post.category.slug %}" class="category-badge">{{ post.category.name }}</a>
+                {% endif %}
+              </div>
+              <p class="text-muted mb-0" style="font-size:0.88rem; flex:1;">{{ post.body|truncatewords:18 }}</p>
+              <div class="mt-2" style="font-size:0.82rem; color:#aaa;">&#9829; {{ post.like_count }}</div>
+            </div>
+          </div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-muted">No posts yet.
+    {% if user.is_authenticated %}
+      <a href="{% url 'post_create' %}">Be the first to write one.</a>
+    {% endif %}
+  </p>
+{% endif %}
+{% endblock %}

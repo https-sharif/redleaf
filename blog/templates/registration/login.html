@@ -1,0 +1,26 @@
+{% extends "blog/base.html" %}
+
+{% block title %}Login - RedLeaf{% endblock %}
+
+{% block content %}
+<div style="max-width:400px; margin:0 auto;">
+  <h1 style="font-size:1.3rem; font-weight:600;" class="mb-3">Login</h1>
+  <div style="background:#fff; border:1px solid #e0e0e0; border-radius:4px; padding:1.5rem;">
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label fw-semibold" style="font-size:0.9rem;">Username</label>
+        <input type="text" name="username" class="form-control form-control-sm" autofocus required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold" style="font-size:0.9rem;">Password</label>
+        <input type="password" name="password" class="form-control form-control-sm" required>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary w-100">Login</button>
+    </form>
+    <p class="text-center text-muted mt-3 mb-0" style="font-size:0.85rem;">
+      No account? <a href="{% url 'register' %}">Register</a>
+    </p>
+  </div>
+</div>
+{% endblock %}
