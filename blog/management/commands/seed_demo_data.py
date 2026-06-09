@@ -132,8 +132,56 @@ DEMO_LIKES = [
 ]
 
 
+def _parse_seed_and_size(url):
+    """Extract (seed, width, height) from a picsum URL like
+    https://picsum.photos/seed/<seed>/<W>/<H>. Falls back to sane defaults."""
+    parts = [p for p in url.split('/') if p]
+    seed, width, height = url, 600, 400
+    try:
+        if 'seed' in parts:
+            i = parts.index('seed')
+            seed = parts[i + 1]
+            width = int(parts[i + 2])
+            height = int(parts[i + 3])
+    except (ValueError, IndexError):
+        pass
+    return seed, width, height
+
+
+def _color_from_seed(seed):
+    """Deterministic, pleasant RGB color from a seed string (no randomness)."""
+    h = 0
+    for ch in seed:
+        h = (h * 31 + ord(ch)) & 0xFFFFFF
+    # keep channels in the mid range so text stays readable
+    r = 60 + (h & 0x7F)
+    g = 60 + ((h >> 8) & 0x7F)
+    b = 60 + ((h >> 16) & 0x7F)
+    return (r, g, b)
+
+
+def _placeholder_image(url):
+    """Generate a solid-color placeholder locally so seeding works without
+    network access (e.g. PythonAnywhere free tier blocks picsum.photos)."""
+    from PIL import Image, ImageDraw
+    seed, width, height = _parse_seed_and_size(url)
+    img = Image.new('RGB', (width, height), _color_from_seed(seed))
+    draw = ImageDraw.Draw(img)
+    label = seed[:18]
+    # rough centering without needing a font file
+    tw = len(label) * 6
+    draw.text((max((width - tw) // 2, 4), height // 2 - 6), label, fill=(255, 255, 255))
+    buf = BytesIO()
+    img.save(buf, format='JPEG', quality=82)
+    buf.seek(0)
+    name = f'{uuid.uuid4().hex}.jpg'
+    return InMemoryUploadedFile(buf, 'ImageField', name, 'image/jpeg', buf.getbuffer().nbytes, None)
+
+
 def _fetch_image(url, filename):
-    """Download url and return an InMemoryUploadedFile, or None on failure."""
+    """Download url and return an InMemoryUploadedFile. If the download fails
+    (offline, or host blocks external sites), fall back to a locally generated
+    placeholder so demo posts/avatars always have an image."""
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
@@ -141,8 +189,11 @@ def _fetch_image(url, filename):
         buf = BytesIO(data)
         name = f'{uuid.uuid4().hex}.jpg'
         return InMemoryUploadedFile(buf, 'ImageField', name, 'image/jpeg', len(data), None)
-    except Exception as exc:
-        return None
+    except Exception:
+        try:
+            return _placeholder_image(url)
+        except Exception:
+            return None
 
 
 class Command(BaseCommand):
