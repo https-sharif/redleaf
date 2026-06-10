@@ -1,45 +1,42 @@
-import ssl
-import urllib.request
 import uuid
-from io import BytesIO
+from pathlib import Path
 
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
-
+from django.core.files import File
 from django.contrib.auth.models import User
-from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.core.management.base import BaseCommand
 
 from blog.models import Category, Comment, Like, Post, UserProfile
 
+# Real demo images bundled with the repo so seeding works on any host
+# (PythonAnywhere's free tier blocks downloads from external image sites).
+ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / 'seed_assets'
+
 DEMO_PASSWORD = 'user123'
 
-# picsum.photos/seed/<seed>/WxH  — deterministic, always the same image for the same seed
+# Bundled image filenames, assigned to demo users/posts by position.
+AVATAR_FILES = ['avatar1.jpg', 'avatar2.jpg', 'avatar3.jpg', 'avatar4.jpg']
+POST_FILES = ['post1.jpg', 'post2.jpg', 'post3.jpg', 'post4.jpg']
+
 DEMO_USERS = [
     {
         'username': 'moderator1',
         'role': 'moderator',
         'bio': 'Keeping things civil around here.',
-        'avatar_url': 'https://picsum.photos/seed/mod1/150/150',
     },
     {
         'username': 'user1',
         'role': 'user',
         'bio': 'Avid reader and occasional writer.',
-        'avatar_url': 'https://picsum.photos/seed/usr1/150/150',
     },
     {
         'username': 'user2',
         'role': 'user',
         'bio': 'Loves design and coffee.',
-        'avatar_url': 'https://picsum.photos/seed/usr2/150/150',
     },
     {
         'username': 'user3',
         'role': 'user',
         'bio': 'Just here to share ideas.',
-        'avatar_url': 'https://picsum.photos/seed/usr3/150/150',
     },
 ]
 
@@ -58,7 +55,6 @@ DEMO_POSTS = [
             'reaching for raw SQL, and lean on class-based views once you are comfortable with '
             'function-based ones.'
         ),
-        'image_url': 'https://picsum.photos/seed/post1/900/400',
     },
     {
         'author': 'user1',
@@ -73,7 +69,6 @@ DEMO_POSTS = [
             '- Use prefetch_related() for ManyToMany or reverse FK relationships.\n'
             '- Use annotate() + Count() instead of Python-level loops for aggregates.'
         ),
-        'image_url': 'https://picsum.photos/seed/post2/900/400',
     },
     {
         'author': 'user2',
@@ -87,7 +82,6 @@ DEMO_POSTS = [
             'features clearly. White space, consistent typography, and a restrained colour '
             'palette do most of the heavy lifting. The hardest part is deciding what to leave out.'
         ),
-        'image_url': 'https://picsum.photos/seed/post3/900/400',
     },
     {
         'author': 'user3',
@@ -101,7 +95,6 @@ DEMO_POSTS = [
             'patterns you would never have invented yourself, and you start to understand the '
             'trade-offs that experienced engineers make every day.'
         ),
-        'image_url': 'https://picsum.photos/seed/post4/900/400',
     },
 ]
 
@@ -132,68 +125,13 @@ DEMO_LIKES = [
 ]
 
 
-def _parse_seed_and_size(url):
-    """Extract (seed, width, height) from a picsum URL like
-    https://picsum.photos/seed/<seed>/<W>/<H>. Falls back to sane defaults."""
-    parts = [p for p in url.split('/') if p]
-    seed, width, height = url, 600, 400
-    try:
-        if 'seed' in parts:
-            i = parts.index('seed')
-            seed = parts[i + 1]
-            width = int(parts[i + 2])
-            height = int(parts[i + 3])
-    except (ValueError, IndexError):
-        pass
-    return seed, width, height
-
-
-def _color_from_seed(seed):
-    """Deterministic, pleasant RGB color from a seed string (no randomness)."""
-    h = 0
-    for ch in seed:
-        h = (h * 31 + ord(ch)) & 0xFFFFFF
-    # keep channels in the mid range so text stays readable
-    r = 60 + (h & 0x7F)
-    g = 60 + ((h >> 8) & 0x7F)
-    b = 60 + ((h >> 16) & 0x7F)
-    return (r, g, b)
-
-
-def _placeholder_image(url):
-    """Generate a solid-color placeholder locally so seeding works without
-    network access (e.g. PythonAnywhere free tier blocks picsum.photos)."""
-    from PIL import Image, ImageDraw
-    seed, width, height = _parse_seed_and_size(url)
-    img = Image.new('RGB', (width, height), _color_from_seed(seed))
-    draw = ImageDraw.Draw(img)
-    label = seed[:18]
-    # rough centering without needing a font file
-    tw = len(label) * 6
-    draw.text((max((width - tw) // 2, 4), height // 2 - 6), label, fill=(255, 255, 255))
-    buf = BytesIO()
-    img.save(buf, format='JPEG', quality=82)
-    buf.seek(0)
-    name = f'{uuid.uuid4().hex}.jpg'
-    return InMemoryUploadedFile(buf, 'ImageField', name, 'image/jpeg', buf.getbuffer().nbytes, None)
-
-
-def _fetch_image(url, filename):
-    """Download url and return an InMemoryUploadedFile. If the download fails
-    (offline, or host blocks external sites), fall back to a locally generated
-    placeholder so demo posts/avatars always have an image."""
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
-            data = resp.read()
-        buf = BytesIO(data)
-        name = f'{uuid.uuid4().hex}.jpg'
-        return InMemoryUploadedFile(buf, 'ImageField', name, 'image/jpeg', len(data), None)
-    except Exception:
-        try:
-            return _placeholder_image(url)
-        except Exception:
-            return None
+def _load_asset(filename):
+    """Open a bundled demo image and return a (django File, save_name) pair,
+    or (None, None) if the file is missing."""
+    src = ASSETS_DIR / filename
+    if not src.exists():
+        return None, None
+    return File(open(src, 'rb')), f'{uuid.uuid4().hex}.jpg'
 
 
 class Command(BaseCommand):
@@ -214,7 +152,7 @@ class Command(BaseCommand):
 
         # ── users ──────────────────────────────────────────────────────────────
         user_objs = {}
-        for data in DEMO_USERS:
+        for i, data in enumerate(DEMO_USERS):
             user, created = User.objects.get_or_create(username=data['username'])
             if created:
                 user.set_password(DEMO_PASSWORD)
@@ -226,13 +164,13 @@ class Command(BaseCommand):
             profile.bio = data['bio']
 
             if not profile.avatar:
-                self.stdout.write(f'  fetching avatar for {user.username}...')
-                img = _fetch_image(data['avatar_url'], 'avatar.jpg')
-                if img:
-                    profile.avatar = img
+                fh, name = _load_asset(AVATAR_FILES[i % len(AVATAR_FILES)])
+                if fh:
+                    profile.avatar.save(name, fh, save=False)
+                    fh.close()
                     self.stdout.write(self.style.SUCCESS(f'  + avatar: {user.username}'))
                 else:
-                    self.stdout.write(self.style.WARNING(f'  ! avatar fetch failed for {user.username}'))
+                    self.stdout.write(self.style.WARNING(f'  ! avatar asset missing for {user.username}'))
 
             profile.save()
             user_objs[user.username] = user
@@ -245,7 +183,7 @@ class Command(BaseCommand):
 
         # ── posts ──────────────────────────────────────────────────────────────
         post_objs = {}
-        for data in DEMO_POSTS:
+        for i, data in enumerate(DEMO_POSTS):
             author = user_objs.get(data['author']) or User.objects.filter(username=data['author']).first()
             if not author:
                 self.stdout.write(self.style.WARNING(f'  ! author not found: {data["author"]}, skipping'))
@@ -262,14 +200,13 @@ class Command(BaseCommand):
 
             if created:
                 counts['posts'] += 1
-                self.stdout.write(f'  fetching image for "{post.title}"...')
-                img = _fetch_image(data['image_url'], 'post.jpg')
-                if img:
-                    post.image = img
-                    post.save()
+                fh, name = _load_asset(POST_FILES[i % len(POST_FILES)])
+                if fh:
+                    post.image.save(name, fh, save=True)
+                    fh.close()
                     self.stdout.write(self.style.SUCCESS(f'  + post: "{post.title}"'))
                 else:
-                    self.stdout.write(self.style.WARNING(f'  ! image fetch failed for "{post.title}"'))
+                    self.stdout.write(self.style.WARNING(f'  ! image asset missing for "{post.title}"'))
 
             post_objs[post.title] = post
 
